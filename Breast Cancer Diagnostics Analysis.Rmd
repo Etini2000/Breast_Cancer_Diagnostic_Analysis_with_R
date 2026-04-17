@@ -1,0 +1,91 @@
+---
+title: "Breast Cancer Diagnostics Analysis"
+author: "Etini Levi"
+date: "2026-04-15"
+output:
+  html_document: default
+---
+
+```{r setup, include=TRUE, echo = FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(janitor)
+UCI_Breast_Cancer_Dataset <- read_csv("C:/Users/hp/Desktop/Data Analytics and Science/Datasets/UCI Breast Cancer Dataset.csv")
+
+df <- UCI_Breast_Cancer_Dataset
+my_data <- df %>%
+  clean_names() %>%
+  select(-where(~all(is.na(.)))) 
+```
+
+## Brief Summary
+
+This report analyzes the Wisconsin Breast Cancer (Diagnostic) dataset from <https://www.kaggle.com/datasets/sarahvch/breast-cancer-wisconsin-prognostic-data-set> to determine the relationship between cellular morphology and malignancy. 
+
+Using Logistic Regression, we achieved a classification accuracy of 92%.
+
+We begin by examining the distribution of cell nuclei radius. 
+
+Larger nuclei are statistically more likely to be associated with malignant (M) samples.
+
+```{r df, echo=FALSE}
+ggplot(df, aes(x = diagnosis, y = radius_mean, fill = diagnosis)) +
+  geom_boxplot(alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Mean Radius: Malignant vs. Benign",
+       x = "Diagnosis (M = Malignant, B = Benign)",
+       y = "Mean Radius of Nuclei")
+```
+
+## Principal Component Analysis
+The dataset had more then 30 features, so a PCA was performed to reduce the dataset in 2D space; PC1 and PC2
+There was a clear separation between the two groups suggesting a strong biological signal.
+```{r pca_df, echo=FALSE}
+numeric_df <- df %>% select(where(is.numeric))
+pca_res <- prcomp(numeric_df, scale. = TRUE)
+pca_df <- as.data.frame(pca_res$x)
+pca_df$diagnosis <- df$diagnosis
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = diagnosis)) +
+  geom_point(alpha = 0.6, size = 3) +
+  theme_classic() +
+  labs(title = "PCA: Visualizing Group Separation",
+       x = "Principal Component 1",
+       y = "Principal Component 2")
+```
+
+
+## Predictive Modeling
+  A Logistic Regression model was used to perform the predictive modeling. 
+The focus were on three key features: Mean Radius, Mean Texture, and Mean Smoothness.
+The model was evaluated on a held-out test set (25% of the data) and the accuracy score was 92.9%
+The confusion matrix showed:
+83 True Negative and 4 False Negative
+6 False Positive and 49 True Positive.
+
+```{r, echo=FALSE}
+library(rsample)
+
+df$diagnosis <- as.factor(df$diagnosis)
+set.seed(123)
+data_split <- initial_split(df, prop = 0.75, strata = diagnosis)
+train_data <- training(data_split)
+test_data  <- testing(data_split)
+
+model <- glm(diagnosis ~ radius_mean + texture_mean + smoothness_mean, 
+             data = train_data, 
+             family = "binomial")
+
+summary(model)
+
+test_data$prob <- predict(model, newdata = test_data, type = "response")
+
+
+test_data$prediction <- ifelse(test_data$prob > 0.5, "M", "B")
+
+
+table(Predicted = test_data$prediction, Actual = test_data$diagnosis)
+```
+
+## Conclusion
+From this project, we have been able to perform EDA with the dataset, performed PCA to reduce 34 features into 2D, and then developed a Logistic Regression model to perform a predictive analytics of diagnosis based on radius_mean, texture_mean and smoothness_mean. The model had a 92.9% accuracy.
